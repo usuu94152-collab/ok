@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>원기옥 — SPIRIT BOMB</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ── 디자인 토큰 ── */
+    :root {
+      --bg:        #04040f;
+      --surface:   #0a0a1e;
+      --border:    #1a1a3a;
+      --orb-core:  #ffffff;
+      --orb-mid:   #88ccff;
+      --orb-outer: #2244ff;
+      --orb-crit:  #aa44ff;
+      --orb-max:   #ffaa00;
+      --particle:  #44aaff;
+      --accent:    #88ddff;
+      --text:      #d0e8ff;
+      --muted:     #3a5a7a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ════════════════════════════════
+       화면 전환 시스템
+    ════════════════════════════════ */
+    .screen {
+      display: none;
+      width: 100vw; height: 100vh;
+      position: absolute; top: 0; left: 0;
+    }
+    .screen.active { display: flex; }
+
+    /* ════════════════════════════════
+       별빛 배경
+    ════════════════════════════════ */
+    #starfield {
+      position: fixed; inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    #starfield span {
+      position: absolute;
+      border-radius: 50%;
+      background: #fff;
+      animation: twinkle var(--dur, 2s) var(--delay, 0s) infinite;
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.15; transform: scale(1); }
+      50%       { opacity: 1;   transform: scale(1.6); }
+    }
+
+    /* ════════════════════════════════
+       가이드 화면
+    ════════════════════════════════ */
+    #guideScreen {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(ellipse at 50% 20%, rgba(34,68,255,0.15) 0%, transparent 65%),
+        var(--bg);
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    .guide-inner {
+      width: 100%;
+      max-width: 540px;
+      padding: 44px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    /* 브랜드 */
+    .brand {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-label {
+      font-size: 11px;
+      letter-spacing: 4px;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .brand-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(58px, 18vw, 88px);
+      line-height: 0.85;
+      color: var(--text);
+      letter-spacing: 6px;
+      text-shadow:
+        0 0 40px rgba(136,204,255,0.55),
+        0 0 90px rgba(34,68,255,0.35);
+    }
+    .brand-subtitle {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 16px;
+      letter-spacing: 8px;
+      color: var(--muted);
+    }
+    .brand-desc {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.8;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    /* SVG 일러스트 */
+    .illust-wrap { display: flex; justify-content: center; }
+
+    /* 사용 방법 */
+    .steps-title {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .steps { display: flex; flex-direction: column; gap: 10px; }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .step-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 28px;
+      color: var(--accent);
+      line-height: 1;
+      flex-shrink: 0;
+      width: 24px;
+      text-align: center;
+    }
+    .step-content { display: flex; flex-direction: column; gap: 3px; }
+    .step-head { font-size: 14px; font-weight: 700; color: var(--text); }
+    .step-body { font-size: 12px; color: var(--muted); line-height: 1.65; }
+
+    /* 경고 박스 */
+    .warn-box {
+      background: rgba(136,221,255,0.04);
+      border: 1px solid rgba(136,221,255,0.18);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.75;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .warn-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+
+    /* 시작 버튼 */
+    .start-btn {
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(135deg, #1a33dd, #3355ff);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 0 30px rgba(34,68,255,0.45);
+    }
+    .start-btn:hover { box-shadow: 0 0 55px rgba(34,68,255,0.75); transform: translateY(-2px); }
+    .start-btn:active { transform: scale(0.98); box-shadow: none; }
+
+    /* ════════════════════════════════
+       카메라 화면
+    ════════════════════════════════ */
+    #camScreen {
+      position: relative;
+      flex-direction: column;
+      background: #000;
+      z-index: 10;
+    }
+
+    /* 숨긴 비디오 */
+    #video {
+      position: absolute;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* 전체화면 캔버스 */
+    #canvas {
+      position: absolute;
+      width: 100%; height: 100%;
+      z-index: 2;
+    }
+
+    /* HUD 상단 */
+    .hud-top {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: linear-gradient(to bottom, rgba(0,0,15,0.72), transparent);
+    }
+    .hud-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 5px;
+      color: var(--accent);
+      text-shadow: 0 0 12px var(--accent);
+    }
+    .back-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 12px;
+      padding: 7px 15px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .back-btn:hover { background: rgba(255,255,255,0.18); }
+
+    /* 상태 메시지 */
+    #statusMsg {
+      position: absolute;
+      bottom: 88px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      font-family: 'Noto Sans KR', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      text-align: center;
+      white-space: nowrap;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.9);
+      transition: color 0.3s;
+      pointer-events: none;
+    }
+    #statusMsg.critical {
+      color: #cc88ff;
+      animation: pulseText 0.65s ease-in-out infinite alternate;
+    }
+    #statusMsg.max {
+      color: var(--orb-max);
+      animation: pulseText 0.45s ease-in-out infinite alternate;
+    }
+    #statusMsg.launch {
+      color: #fff;
+      font-size: 24px;
+      letter-spacing: 2px;
+      animation: pulseText 0.3s ease-in-out infinite alternate;
+    }
+    @keyframes pulseText {
+      from { text-shadow: 0 2px 12px rgba(0,0,0,0.9); }
+      to   { text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 30px currentColor, 0 0 70px currentColor; }
+    }
+
+    /* 에너지 바 */
+    .energy-bar-wrap {
+      position: absolute;
+      bottom: 24px;
+      left: 24px; right: 24px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .energy-bar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .energy-bar-label {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .energy-bar-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      color: var(--accent);
+      letter-spacing: 2px;
+      transition: color 0.3s;
+      line-height: 1;
+    }
+    .energy-bar-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .energy-bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      transition: width 0.06s linear, background 0.4s;
+      background: linear-gradient(90deg, var(--orb-outer), var(--orb-mid));
+    }
+
+    /* 로딩 오버레이 */
+    #loadingOverlay {
+      position: absolute; inset: 0;
+      z-index: 50;
+      background: rgba(4,4,15,0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+    }
+    .spinner {
+      width: 46px; height: 46px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    /* 발사 플래시 오버레이 */
+    #flashOverlay {
+      position: absolute; inset: 0;
+      z-index: 40;
+      pointer-events: none;
+      background: rgba(180,220,255,0.95);
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════ 별빛 배경 ════ -->
+<div id="starfield"></div>
+
+<!-- ════ 가이드 화면 ════ -->
+<div id="guideScreen" class="screen active">
+  <div class="guide-inner">
+
+    <div class="brand">
+      <div class="brand-label">Dragon Ball · AR Experience</div>
+      <div class="brand-title">원기옥</div>
+      <div class="brand-subtitle">SPIRIT BOMB</div>
+      <div class="brand-desc">카메라 앞에서 두 손을 들어 에너지를 모아보세요.<br>원기옥이 가득 차면 손을 내려 발사할 수 있습니다!</div>
+    </div>
+
+    <!-- SVG 일러스트 -->
+    <div class="illust-wrap">
+      <svg width="170" height="190" viewBox="0 0 170 190">
+        <defs>
+          <radialGradient id="gOrbCore" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
+            <stop offset="35%"  stop-color="#88ccff" stop-opacity="0.9"/>
+            <stop offset="75%"  stop-color="#2244ff" stop-opacity="0.7"/>
+            <stop offset="100%" stop-color="#0011aa" stop-opacity="0"/>
+          </radialGradient>
+          <radialGradient id="gOrbGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stop-color="#2244ff" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#2244ff" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- 외부 글로우 -->
+        <circle cx="85" cy="55" r="52" fill="url(#gOrbGlow)"/>
+        <!-- 메인 원기옥 -->
+        <circle cx="85" cy="55" r="30" fill="url(#gOrbCore)"/>
+        <!-- 내부 하이라이트 -->
+        <circle cx="77" cy="47" r="9" fill="rgba(255,255,255,0.55)" filter="url(#glow)"/>
+
+        <!-- 몸통 -->
+        <line x1="85" y1="104" x2="85" y2="150" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
+        <!-- 머리 -->
+        <circle cx="85" cy="95" r="10" fill="none" stroke="#2a4a6a" stroke-width="3"/>
+        <!-- 왼팔 (들림) -->
+        <line x1="85" y1="118" x2="50" y2="84" stroke="#88ddff" stroke-width="3.5" stroke-linecap="round"/>
+        <!-- 오른팔 (들림) -->
+        <line x1="85" y1="118" x2="120" y2="84" stroke="#88ddff" stroke-width="3.5" stroke-linecap="round"/>
+        <!-- 왼다리 -->
+        <line x1="85" y1="150" x2="68" y2="178" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
+        <!-- 오른다리 -->
+        <line x1="85" y1="150" x2="102" y2="178" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
+
+        <!-- 에너지 파티클 -->
+        <circle cx="48" cy="72" r="3"   fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
+        <circle cx="28" cy="48" r="2"   fill="#88ccff" opacity="0.6"/>
+        <circle cx="122" cy="76" r="2.5" fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
+        <circle cx="138" cy="44" r="1.8" fill="#88ccff" opacity="0.6"/>
+        <circle cx="110" cy="28" r="2.5" fill="#ffffff" opacity="0.7"/>
+        <circle cx="58"  cy="26" r="2.5" fill="#ffffff" opacity="0.7"/>
+        <circle cx="38"  cy="90" r="1.5" fill="#44aaff" opacity="0.5"/>
+        <circle cx="135" cy="95" r="1.5" fill="#44aaff" opacity="0.5"/>
+      </svg>
+    </div>
+
+    <div class="steps-title">사용 방법</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-head">📱 카메라 앞에 서세요</div>
+          <div class="step-body">전면 카메라가 열립니다. 상반신 이상이 화면에 들어오도록 거리를 맞춰주세요.</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-head">🙌 두 손을 어깨 위로 올리세요</div>
+          <div class="step-body">손목이 어깨보다 높아지면 에너지 충전이 시작됩니다. 더 높이 올릴수록 빨리 찹니다!</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-head">💥 원기옥 완성 후 손을 내려 발사!</div>
+          <div class="step-body">에너지 100% 충전 후 손을 내리면 원기옥이 하늘로 발사됩니다!</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn-box">
+      <span class="warn-icon">ℹ️</span>
+      <span>카메라 권한을 허용해야 작동합니다. AI 포즈 인식 모델 로딩에 수초 걸릴 수 있습니다. 밝은 환경에서 사용하면 인식률이 높아집니다.</span>
+    </div>
+
+    <button class="start-btn" onclick="startCamera()">원기옥 시작하기 →</button>
+
+  </div>
+</div>
+
+<!-- ════ 카메라 화면 ════ -->
+<div id="camScreen" class="screen">
+  <video id="video" playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <!-- 로딩 -->
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">원기옥 모델 로딩 중…</div>
+  </div>
+
+  <!-- 발사 플래시 -->
+  <div id="flashOverlay"></div>
+
+  <!-- HUD 상단 -->
+  <div class="hud-top">
+    <div class="hud-logo">원기옥</div>
+    <button class="back-btn" onclick="goBack()">← 돌아가기</button>
+  </div>
+
+  <!-- 상태 메시지 -->
+  <div id="statusMsg">손을 올려주세요</div>
+
+  <!-- 에너지 바 -->
+  <div class="energy-bar-wrap">
+    <div class="energy-bar-header">
+      <div class="energy-bar-label">에너지</div>
+      <div class="energy-bar-num" id="energyNum">0</div>
+    </div>
+    <div class="energy-bar-track">
+      <div class="energy-bar-fill" id="energyFill"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ── Part 2~5에서 채워질 예정 ── */
+</script>
+</body>
+</html>
