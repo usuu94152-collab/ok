@@ -403,36 +403,21 @@
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-
-        <!-- 외부 글로우 -->
         <circle cx="85" cy="55" r="52" fill="url(#gOrbGlow)"/>
-        <!-- 메인 원기옥 -->
         <circle cx="85" cy="55" r="30" fill="url(#gOrbCore)"/>
-        <!-- 내부 하이라이트 -->
         <circle cx="77" cy="47" r="9" fill="rgba(255,255,255,0.55)" filter="url(#glow)"/>
-
-        <!-- 몸통 -->
         <line x1="85" y1="104" x2="85" y2="150" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
-        <!-- 머리 -->
         <circle cx="85" cy="95" r="10" fill="none" stroke="#2a4a6a" stroke-width="3"/>
-        <!-- 왼팔 (들림) -->
         <line x1="85" y1="118" x2="50" y2="84" stroke="#88ddff" stroke-width="3.5" stroke-linecap="round"/>
-        <!-- 오른팔 (들림) -->
         <line x1="85" y1="118" x2="120" y2="84" stroke="#88ddff" stroke-width="3.5" stroke-linecap="round"/>
-        <!-- 왼다리 -->
         <line x1="85" y1="150" x2="68" y2="178" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
-        <!-- 오른다리 -->
         <line x1="85" y1="150" x2="102" y2="178" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
-
-        <!-- 에너지 파티클 -->
-        <circle cx="48" cy="72" r="3"   fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
-        <circle cx="28" cy="48" r="2"   fill="#88ccff" opacity="0.6"/>
+        <circle cx="48"  cy="72" r="3"   fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
+        <circle cx="28"  cy="48" r="2"   fill="#88ccff" opacity="0.6"/>
         <circle cx="122" cy="76" r="2.5" fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
         <circle cx="138" cy="44" r="1.8" fill="#88ccff" opacity="0.6"/>
         <circle cx="110" cy="28" r="2.5" fill="#ffffff" opacity="0.7"/>
         <circle cx="58"  cy="26" r="2.5" fill="#ffffff" opacity="0.7"/>
-        <circle cx="38"  cy="90" r="1.5" fill="#44aaff" opacity="0.5"/>
-        <circle cx="135" cy="95" r="1.5" fill="#44aaff" opacity="0.5"/>
       </svg>
     </div>
 
@@ -467,7 +452,6 @@
     </div>
 
     <button class="start-btn" onclick="startCamera()">원기옥 시작하기 →</button>
-
   </div>
 </div>
 
@@ -476,25 +460,20 @@
   <video id="video" playsinline></video>
   <canvas id="canvas"></canvas>
 
-  <!-- 로딩 -->
   <div id="loadingOverlay">
     <div class="spinner"></div>
     <div class="loading-text">원기옥 모델 로딩 중…</div>
   </div>
 
-  <!-- 발사 플래시 -->
   <div id="flashOverlay"></div>
 
-  <!-- HUD 상단 -->
   <div class="hud-top">
     <div class="hud-logo">원기옥</div>
     <button class="back-btn" onclick="goBack()">← 돌아가기</button>
   </div>
 
-  <!-- 상태 메시지 -->
   <div id="statusMsg">손을 올려주세요</div>
 
-  <!-- 에너지 바 -->
   <div class="energy-bar-wrap">
     <div class="energy-bar-header">
       <div class="energy-bar-label">에너지</div>
@@ -507,7 +486,193 @@
 </div>
 
 <script>
-  /* ── Part 2~5에서 채워질 예정 ── */
+// ════════════════════════════════════════════════
+//  PART 2: 상수 / 상태 / 유틸 / MediaPipe 초기화
+// ════════════════════════════════════════════════
+
+/* ── 상수 ── */
+const BASE_CHARGE_RATE = 14;   // 에너지/초 (chargeRate=1.0 기준)
+const DECAY_RATE       = 1.8;  // 에너지/초 (손 내릴 때 감소 속도)
+const MAX_PARTICLES    = 400;
+const ORB_BASE_R       = 18;   // 에너지=1 일 때 반지름(px)
+const ORB_MAX_R_FRAC   = 0.48; // min(W,H) 에서 차지하는 비율 (에너지=100)
+
+const STAGES = [
+  { min:   0, name: 'idle',      color: '#2244ff', msg: '손을 올려주세요',              cls: '' },
+  { min:   5, name: 'gathering', color: '#2266ff', msg: '에너지 수집 중…',              cls: '' },
+  { min:  40, name: 'charging',  color: '#4488ff', msg: '에너지 충전 중!',              cls: '' },
+  { min:  70, name: 'critical',  color: '#aa44ff', msg: '원기옥 임박!',                 cls: 'critical' },
+  { min: 100, name: 'max',       color: '#ffaa00', msg: '원기옥 완성! 손을 내리면 발사!', cls: 'max' },
+];
+
+/* ── 상태 변수 ── */
+let pose   = null;
+let camera = null;
+
+// 에너지
+let energyLevel      = 0;
+let handsRaised      = false;
+let prevHandsRaised  = false;
+let oneHandRaised    = false;
+let chargeRate       = 0;
+
+// 원기옥
+let orbState      = 'idle';  // 'idle' | 'active' | 'launch'
+let orbCenterX    = 0;
+let orbCenterY    = 0;
+let orbRadius     = 0;
+let orbPulsePhase = 0;
+let launchVY      = 0;
+let launchOpacity = 1;
+let launchScale   = 1;
+
+// 파티클
+let particles = [];
+
+// 포즈 데이터
+let latestLandmarks = null;
+let lastFrameImage  = null;
+let wristLPx = null;  // 왼쪽 손목 픽셀 좌표 (미러)
+let wristRPx = null;  // 오른쪽 손목 픽셀 좌표 (미러)
+
+// RAF
+let animFrameId   = null;
+let lastTimestamp = 0;
+
+/* ── Smoother: N프레임 이동평균 (squat 앱에서 재사용) ── */
+class Smoother {
+  constructor(n) { this.n = n; this.buf = []; }
+  push(v) {
+    this.buf.push(v);
+    if (this.buf.length > this.n) this.buf.shift();
+    return this.buf.reduce((a, b) => a + b, 0) / this.buf.length;
+  }
+  reset() { this.buf = []; }
+}
+const wristSmL    = new Smoother(5);
+const wristSmR    = new Smoother(5);
+const shoulderSmL = new Smoother(5);
+const shoulderSmR = new Smoother(5);
+
+/* ── 유틸: hex → rgba ── */
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* ── 현재 단계 반환 ── */
+function getStage() {
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    if (energyLevel >= STAGES[i].min) return STAGES[i];
+  }
+  return STAGES[0];
+}
+
+/* ════════════════════════════════
+   별빛 초기화
+════════════════════════════════ */
+(function initStarfield() {
+  const sf = document.getElementById('starfield');
+  for (let i = 0; i < 180; i++) {
+    const s    = document.createElement('span');
+    const size = 1 + Math.random() * 2.2;
+    s.style.cssText = [
+      `width:${size}px`, `height:${size}px`,
+      `top:${Math.random() * 100}%`,
+      `left:${Math.random() * 100}%`,
+      `opacity:${0.12 + Math.random() * 0.55}`,
+      `--dur:${1.4 + Math.random() * 3.2}s`,
+      `--delay:${Math.random() * 4}s`,
+    ].join(';');
+    sf.appendChild(s);
+  }
+})();
+
+/* ════════════════════════════════
+   화면 전환 (squat 앱에서 재사용)
+════════════════════════════════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goBack() {
+  if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+  if (camera) { try { camera.stop(); } catch(e) {} camera = null; }
+  if (pose)   { try { pose.close();  } catch(e) {} pose   = null; }
+  // 상태 초기화
+  energyLevel = 0; orbState = 'idle'; particles = [];
+  latestLandmarks = null; lastFrameImage = null;
+  wristLPx = null; wristRPx = null;
+  launchScale = 1; launchOpacity = 1; launchVY = 0;
+  wristSmL.reset(); wristSmR.reset();
+  shoulderSmL.reset(); shoulderSmR.reset();
+  showScreen('guideScreen');
+}
+
+/* ════════════════════════════════
+   카메라 + MediaPipe 초기화
+   (squat 앱 패턴 재사용, facingMode: 'user' 로 변경)
+════════════════════════════════ */
+async function startCamera() {
+  showScreen('camScreen');
+
+  const video  = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+
+  pose = new Pose({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+  });
+
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.5,
+  });
+
+  pose.onResults(results => onPoseResults(results, canvas));
+
+  camera = new Camera(video, {
+    onFrame: async () => {
+      canvas.width  = video.videoWidth  || window.innerWidth;
+      canvas.height = video.videoHeight || window.innerHeight;
+      await pose.send({ image: video });
+    },
+    width: 1280,
+    height: 720,
+    facingMode: 'user',  // 전면 카메라
+  });
+
+  try {
+    await camera.start();
+    document.getElementById('loadingOverlay').style.display = 'none';
+    lastTimestamp = performance.now();
+    animFrameId   = requestAnimationFrame(animLoop);
+  } catch(e) {
+    document.getElementById('loadingOverlay').innerHTML =
+      `<div style="color:#ff4488;font-size:14px;text-align:center;padding:24px;line-height:1.8;">
+        카메라 권한이 필요합니다.<br>브라우저 설정에서<br>카메라 권한을 허용해주세요.
+      </div>`;
+  }
+}
+
+/* ── Part 3~5 에서 채워질 함수들 (선언만) ── */
+function onPoseResults(results, canvas) {}
+function updateEnergy(dt) {}
+function triggerLaunch() {}
+function updateLaunch(dt, H) {}
+function spawnParticles() {}
+function updateParticles(dt) {}
+function drawOrb(ctx, W, H) {}
+function drawParticles(ctx) {}
+function drawHandMarkers(ctx) {}
+function drawFrame(ctx, W, H) {}
+function updateDOMHUD() {}
+function animLoop(timestamp) { animFrameId = requestAnimationFrame(animLoop); }
 </script>
 </body>
 </html>
