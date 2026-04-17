@@ -87,10 +87,10 @@
     .guide-inner {
       width: 100%;
       max-width: 540px;
-      padding: 28px 24px 36px;
+      padding: calc(72px + env(safe-area-inset-top)) 24px 36px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 22px;
     }
 
     /* 브랜드 */
@@ -110,9 +110,9 @@
     }
     .brand-title {
       font-family: 'Noto Sans KR', sans-serif;
-      font-size: 58px;
+      font-size: 74px;
       font-weight: 900;
-      line-height: 1.05;
+      line-height: 1.16;
       color: var(--text);
       letter-spacing: 0;
       text-shadow:
@@ -386,10 +386,13 @@
     @media (max-width: 640px) {
       .guide-inner {
         max-width: 100%;
-        padding: 20px 18px calc(28px + env(safe-area-inset-bottom));
+        padding: calc(56px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));
         gap: 16px;
       }
-      .brand-title { font-size: 46px; }
+      .brand-title {
+        font-size: 56px;
+        line-height: 1.16;
+      }
       .brand-desc { font-size: 12px; }
       .spirit-preview {
         width: 100%;
