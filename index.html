@@ -133,8 +133,17 @@
       margin-top: 4px;
     }
 
-    /* SVG 일러스트 */
+    /* 첫 화면 이미지 */
     .illust-wrap { display: flex; justify-content: center; }
+    .spirit-preview {
+      width: min(460px, 100%);
+      height: auto;
+      max-height: 300px;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px;
+      box-shadow: 0 0 34px rgba(53,230,255,0.16), 0 0 42px rgba(255,176,46,0.12);
+    }
 
     /* 사용 방법 */
     .steps-title {
@@ -382,7 +391,10 @@
       }
       .brand-title { font-size: 56px; }
       .brand-desc { font-size: 12px; }
-      .illust-wrap svg { width: 132px; height: 148px; }
+      .spirit-preview {
+        width: 100%;
+        max-height: 220px;
+      }
       .step { padding: 12px 14px; }
       .hud-top {
         padding: calc(12px + env(safe-area-inset-top)) 14px 12px;
@@ -416,41 +428,8 @@
       <div class="brand-desc">카메라 앞에서 두 손을 올려 에너지를 모으세요.<br>100%가 되면 손을 내려 원기옥을 발사합니다.</div>
     </div>
 
-    <!-- SVG 일러스트 -->
     <div class="illust-wrap">
-      <svg width="170" height="190" viewBox="0 0 170 190">
-        <defs>
-          <radialGradient id="gOrbCore" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
-            <stop offset="35%"  stop-color="#88ccff" stop-opacity="0.9"/>
-            <stop offset="75%"  stop-color="#2244ff" stop-opacity="0.7"/>
-            <stop offset="100%" stop-color="#0011aa" stop-opacity="0"/>
-          </radialGradient>
-          <radialGradient id="gOrbGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%"   stop-color="#2244ff" stop-opacity="0.35"/>
-            <stop offset="100%" stop-color="#2244ff" stop-opacity="0"/>
-          </radialGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
-        <circle cx="85" cy="55" r="52" fill="url(#gOrbGlow)"/>
-        <circle cx="85" cy="55" r="30" fill="url(#gOrbCore)"/>
-        <circle cx="77" cy="47" r="9" fill="rgba(255,255,255,0.55)" filter="url(#glow)"/>
-        <line x1="85" y1="104" x2="85" y2="150" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="85" cy="95" r="10" fill="none" stroke="#2a4a6a" stroke-width="3"/>
-        <line x1="85" y1="118" x2="50" y2="84" stroke="#88ddff" stroke-width="3.5" stroke-linecap="round"/>
-        <line x1="85" y1="118" x2="120" y2="84" stroke="#88ddff" stroke-width="3.5" stroke-linecap="round"/>
-        <line x1="85" y1="150" x2="68" y2="178" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
-        <line x1="85" y1="150" x2="102" y2="178" stroke="#2a4a6a" stroke-width="4" stroke-linecap="round"/>
-        <circle cx="48"  cy="72" r="3"   fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
-        <circle cx="28"  cy="48" r="2"   fill="#88ccff" opacity="0.6"/>
-        <circle cx="122" cy="76" r="2.5" fill="#44aaff" opacity="0.85" filter="url(#glow)"/>
-        <circle cx="138" cy="44" r="1.8" fill="#88ccff" opacity="0.6"/>
-        <circle cx="110" cy="28" r="2.5" fill="#ffffff" opacity="0.7"/>
-        <circle cx="58"  cy="26" r="2.5" fill="#ffffff" opacity="0.7"/>
-      </svg>
+      <img class="spirit-preview" src="assets/spirit-bomb.gif" alt="두 손을 들어 원기옥을 모으는 장면">
     </div>
 
     <div class="steps-title">사용 방법</div>
